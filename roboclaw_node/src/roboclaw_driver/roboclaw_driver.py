@@ -1,7 +1,7 @@
 import random
 import serial
 import time
-import threading
+#import threading
 
 _trystimeout = 3
 
@@ -119,13 +119,15 @@ def crc_update(data):
             _crc <<= 1
     return
 
-
+# I added the port check because the cmd_vel_callback was calling this
+# after the node had been killed. wot
 def _sendcommand(address, command):
-    crc_clear()
-    crc_update(address)
-    port.write(chr(address))
-    crc_update(command)
-    port.write(chr(command))
+    if (port.isOpen()):
+        crc_clear()
+        crc_update(address)
+        port.write(chr(address))
+        crc_update(command)
+        port.write(chr(command))
     return
 
 
@@ -1180,4 +1182,16 @@ def ReadPWMMode(address):
 def Open(comport, rate):
     global port
     port = serial.Serial(comport, baudrate=rate, timeout=0.1, interCharTimeout=0.01)
+    return
+#TODO (matt): add comments if this works 
+def Flush():
+    if (port is not None and port.isOpen()):
+	port.flushInput()
+	port.flushOutput()
+    return
+
+def Close():
+    if (port is not None and port.isOpen()):
+        Flush()
+    	port.close()
     return

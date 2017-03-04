@@ -72,13 +72,15 @@ class EncoderOdom:
     def update_publish(self, enc_left, enc_right):
         # 2106 per 0.1 seconds is max speed, error in the 16th bit is 32768
         # TODO lets find a better way to deal with this error
-        if abs(enc_left - self.last_enc_left) > 20000:
-            rospy.logerr("Ignoring left encoder jump: cur %d, last %d" % (enc_left, self.last_enc_left))
-        elif abs(enc_right - self.last_enc_right) > 20000:
-            rospy.logerr("Ignoring right encoder jump: cur %d, last %d" % (enc_right, self.last_enc_right))
-        else:
-            vel_x, vel_theta = self.update(enc_left, enc_right)
-            self.publish_odom(self.cur_x, self.cur_y, self.cur_theta, vel_x, vel_theta)
+        #if abs(enc_left - self.last_enc_left) > 20000:
+        #    rospy.logerr("Ignoring left encoder jump: cur %d, last %d" % (enc_left, self.last_enc_left))
+        #elif abs(enc_right - self.last_enc_right) > 20000:
+        #    rospy.logerr("Ignoring right encoder jump: cur %d, last %d" % (enc_right, self.last_enc_right))
+        #else:
+        #    vel_x, vel_theta = self.update(enc_left, enc_right)
+        #    self.publish_odom(self.cur_x, self.cur_y, self.cur_theta, vel_x, vel_theta)
+        vel_x, vel_theta = self.update(enc_left, enc_right)
+        self.publish_odom(self.cur_x, self.cur_y, self.cur_theta, vel_x, vel_theta)
 
     def publish_odom(self, cur_x, cur_y, cur_theta, vx, vth):
         quat = tf.transformations.quaternion_from_euler(0, 0, cur_theta)
@@ -140,8 +142,8 @@ class Node:
         rospy.init_node("roboclaw_node")
         rospy.on_shutdown(self.shutdown)
         rospy.loginfo("Connecting to roboclaw")
-        dev_name = rospy.get_param("~dev", "/dev/ttyACM0")
-        baud_rate = int(rospy.get_param("~baud", "115200"))
+        self.dev_name = rospy.get_param("~dev", "/dev/ttyACM0")
+        self.baud_rate = int(rospy.get_param("~baud", "115200"))
 
         self.address = int(rospy.get_param("~address", "128"))
         if self.address > 0x87 or self.address < 0x80:
@@ -150,7 +152,7 @@ class Node:
 
         # TODO need someway to check if address is correct
         try:
-            roboclaw.Open(dev_name, baud_rate)
+            roboclaw.Open(self.dev_name, self.baud_rate)
         except Exception as e:
             rospy.logfatal("Could not connect to Roboclaw")
             rospy.logdebug(e)
@@ -187,8 +189,8 @@ class Node:
 
         rospy.sleep(1)
 
-        rospy.logdebug("dev %s", dev_name)
-        rospy.logdebug("baud %d", baud_rate)
+        rospy.logdebug("dev %s", self.dev_name)
+        rospy.logdebug("baud %d", self.baud_rate)
         rospy.logdebug("address %d", self.address)
         rospy.logdebug("max_speed %f", self.MAX_SPEED)
         rospy.logdebug("ticks_per_meter %f", self.TICKS_PER_METER)
@@ -196,6 +198,7 @@ class Node:
 
     def run(self):
         rospy.loginfo("Starting motor drive")
+        roboclaw.Flush()
         r_time = rospy.Rate(10)
         while not rospy.is_shutdown():
 
@@ -228,7 +231,7 @@ class Node:
                 rospy.logwarn("ReadEncM2 OSError: %d", e.errno)
                 rospy.logdebug(e)
 
-            if ('enc1' in vars()) and ('enc2' in vars()):
+            if ((enc1 is not None) and (enc2 is not None)):
                 rospy.logdebug(" Encoders %d %d" % (enc1, enc2))
                 self.encodm.update_publish(enc1, enc2)
 
@@ -287,8 +290,12 @@ class Node:
     def shutdown(self):
         rospy.loginfo("Shutting down")
         try:
-            roboclaw.ForwardM1(self.address, 0)
-            roboclaw.ForwardM2(self.address, 0)
+            roboclaw.Open(self.dev_name, self.baud_rate)
+            roboclaw.SpeedM1M2(self.address, 0, 0)
+            roboclaw.Close()
+            rospy.loginfo("Closed Roboclaw serial connection")
+            #roboclaw.ForwardM1(self.address, 0)
+            #roboclaw.ForwardM2(self.address, 0)
         except OSError:
             rospy.logerr("Shutdown did not work trying again")
             try:
@@ -297,7 +304,7 @@ class Node:
             except OSError as e:
                 rospy.logerr("Could not shutdown motors!!!!")
                 rospy.logdebug(e)
-
+        quit()
 
 if __name__ == "__main__":
     try:

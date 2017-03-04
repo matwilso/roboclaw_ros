@@ -8,8 +8,9 @@
     <arg name="ticks_per_meter" default="4342.2"/>
     <arg name="base_width" default="0.315"/>
     <arg name="run_diag" default="true"/>
+    <arg name="respawn" default="true"/>
 
-    <node if="$(arg run_diag)" pkg="roboclaw_node" type="roboclaw_node.py" name="roboclaw_node">
+    <node pkg="roboclaw_node" type="roboclaw_node.py" name="roboclaw_node" respawn="$(arg respawn)" output="screen">
         <param name="~dev" value="$(arg dev)"/>
         <param name="~baud" value="$(arg baud)"/>
         <param name="~address" value="$(arg address)"/>
@@ -18,7 +19,7 @@
         <param name="~base_width" value="$(arg base_width)"/>
     </node>
 
-    <node pkg="diagnostic_aggregator" type="aggregator_node"
+    <node if="$(arg run_diag)" pkg="diagnostic_aggregator" type="aggregator_node"
           name="diagnostic_aggregator">
         <rosparam command="load"
                   file="$(find roboclaw_node)/config/roboclaw_diag.yaml"/>
