@@ -185,7 +185,7 @@ class Node:
         self.encodm = EncoderOdom(self.TICKS_PER_METER, self.BASE_WIDTH)
         self.last_set_speed_time = rospy.get_rostime()
 
-        rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
+        self.sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
 
         rospy.sleep(1)
 
@@ -289,6 +289,8 @@ class Node:
     # TODO: need clean shutdown so motors stop even if new msgs are arriving
     def shutdown(self):
         rospy.loginfo("Shutting down")
+        if hasattr(self, "sub"):	 
+            self.sub.unregister() # so it doesn't get called after we're dead
         try:
             roboclaw.Open(self.dev_name, self.baud_rate)
             roboclaw.SpeedM1M2(self.address, 0, 0)
