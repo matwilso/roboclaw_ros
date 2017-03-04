@@ -260,6 +260,16 @@ class Node:
         # We need to figure out how to map the twist command to 
 	# a motor command. Also we need to drive backward if negative
         # there is a different serial command (BackwardM1 or something)
+        #
+        # Sorry for the mess. It is late.  There is a bug here
+        # where it is using the ticks to calculate how much to output. 
+        # It won't change directions if you make the x value negative,
+        # unless you stop it first. 
+        # 
+        # Also need to figure out how to tell the motor controller to go.
+        # will require reading more specs.
+        # 
+        # 
         motor1_command = abs(linear_x)/self.MAX_SPEED * 127 # 127 is max motor value
         rospy.logdebug("motor command = %d",int(motor1_command))
         #rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
@@ -271,8 +281,8 @@ class Node:
                 roboclaw.ForwardM2(self.address, 0)
                 roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
             else:
-                #roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
-                roboclaw.SpeedM1M2(self.address, int(motor1_command), int(motor1_command))
+                roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
+                #roboclaw.SpeedM1M2(self.address, int(motor1_command), int(motor1_command))
         except OSError as e:
             rospy.logwarn("SpeedM1M2 OSError: %d", e.errno)
             rospy.logdebug(e)
