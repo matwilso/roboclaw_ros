@@ -139,7 +139,7 @@ class Node:
                        0x4000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "M1 home"),
                        0x8000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "M2 home")}
 
-        rospy.init_node("roboclaw_node")
+        rospy.init_node("roboclaw_node", log_level=rospy.DEBUG) #TODO: remove 2nd param
         rospy.on_shutdown(self.shutdown)
         rospy.loginfo("Connecting to roboclaw")
         self.dev_name = rospy.get_param("~dev", "/dev/ttyACM0")
@@ -186,6 +186,7 @@ class Node:
         self.last_set_speed_time = rospy.get_rostime()
 
         self.sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
+        self.TIMEOUT = 2
 
         rospy.sleep(1)
 
@@ -202,11 +203,12 @@ class Node:
         r_time = rospy.Rate(10)
         while not rospy.is_shutdown():
 
-            if (rospy.get_rostime() - self.last_set_speed_time).to_sec() > 1:
+            if (rospy.get_rostime() - self.last_set_speed_time).to_sec() > self.TIMEOUT:
                 rospy.loginfo("Did not get command for 1 second, stopping")
                 try:
                     roboclaw.ForwardM1(self.address, 0)
                     roboclaw.ForwardM2(self.address, 0)
+                    roboclaw.SpeedM1M2(self.address, 0, 0)
                 except OSError as e:
                     rospy.logerr("Could not stop")
                     rospy.logdebug(e)
@@ -232,7 +234,7 @@ class Node:
                 rospy.logdebug(e)
 
             if ((enc1 is not None) and (enc2 is not None)):
-                rospy.logdebug(" Encoders %d %d" % (enc1, enc2))
+                #rospy.logdebug(" Encoders %d %d" % (enc1, enc2))
                 self.encodm.update_publish(enc1, enc2)
 
                 self.updater.update()
@@ -241,6 +243,7 @@ class Node:
     def cmd_vel_callback(self, twist):
         self.last_set_speed_time = rospy.get_rostime()
 
+        rospy.logdebug("Twist: -Linear X: %d    -Angular Z: %d",twist.linear.x,twist.angular.z)
         linear_x = twist.linear.x
         if linear_x > self.MAX_SPEED:
             linear_x = self.MAX_SPEED
@@ -253,15 +256,23 @@ class Node:
         vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
         vl_ticks = int(vl * self.TICKS_PER_METER)
 
-        rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
+        # TODO: THIS IS WRONG LOGIC, just testing.
+        # We need to figure out how to map the twist command to 
+	# a motor command. Also we need to drive backward if negative
+        # there is a different serial command (BackwardM1 or something)
+        motor1_command = abs(linear_x)/self.MAX_SPEED * 127 # 127 is max motor value
+        rospy.logdebug("motor command = %d",int(motor1_command))
+        #rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
             # This is a hack way to keep a poorly tuned PID from making noise at speed 0
             if vr_ticks is 0 and vl_ticks is 0:
                 roboclaw.ForwardM1(self.address, 0)
                 roboclaw.ForwardM2(self.address, 0)
-            else:
                 roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
+            else:
+                #roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
+                roboclaw.SpeedM1M2(self.address, int(motor1_command), int(motor1_command))
         except OSError as e:
             rospy.logwarn("SpeedM1M2 OSError: %d", e.errno)
             rospy.logdebug(e)
