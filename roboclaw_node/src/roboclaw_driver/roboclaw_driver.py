@@ -120,7 +120,7 @@ def crc_update(data):
     return
 
 # I added the port check because the cmd_vel_callback was calling this
-# after the node had been killed. wot
+# after the node had been killed.
 def _sendcommand(address, command):
     if (port.isOpen()):
         crc_clear()
@@ -699,6 +699,11 @@ def SendRandomData(cnt):
 
 
 def ForwardM1(address, val):
+    if val > 127:
+	val = 127
+    elif val < 0:
+	val = 0
+
     return _write1(address, Cmd.M1FORWARD, val)
 
 
@@ -1183,15 +1188,24 @@ def Open(comport, rate):
     global port
     port = serial.Serial(comport, baudrate=rate, timeout=0.1, interCharTimeout=0.01)
     return
-#TODO (matt): add comments if this works 
+
 def Flush():
+    """Flush the input and output buffers of the serial connection"""
     if (port is not None and port.isOpen()):
 	port.flushInput()
 	port.flushOutput()
     return
 
 def Close():
+    """Closes the serial connection if it is open. 
+       Meant to prevent errors when trying to reopen a connection after a kill""" 
     if (port is not None and port.isOpen()):
         Flush()
     	port.close()
     return
+
+# Method to check if the port has been initialized
+#def _checkIfOpen():
+#   if port in locals():
+#	try:
+#	    Open(

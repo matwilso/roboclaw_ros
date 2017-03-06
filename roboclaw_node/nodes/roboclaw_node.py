@@ -150,6 +150,8 @@ class Node:
             rospy.logfatal("Address out of range")
             rospy.signal_shutdown("Address out of range")
 
+	# TODO: make sure the roboclaw successfully opens.
+	# Sometimes it fails.
         # TODO need someway to check if address is correct
         try:
             roboclaw.Open(self.dev_name, self.baud_rate)
@@ -170,7 +172,7 @@ class Node:
             rospy.logdebug(e)
             pass
 
-        if not version[0]:
+        if version is None:
             rospy.logwarn("Could not get version from roboclaw")
         else:
             rospy.logdebug(repr(version[1]))
@@ -179,7 +181,7 @@ class Node:
         roboclaw.ResetEncoders(self.address)
 
         self.MAX_SPEED = float(rospy.get_param("~max_speed", "2.0"))
-        self.TICKS_PER_METER = float(rospy.get_param("~tick_per_meter", "4342.2"))
+        self.TICKS_PER_METER = float(rospy.get_param("~tick_per_meter", "10"))
         self.BASE_WIDTH = float(rospy.get_param("~base_width", "0.315"))
 
         self.encodm = EncoderOdom(self.TICKS_PER_METER, self.BASE_WIDTH)
@@ -234,7 +236,7 @@ class Node:
                 rospy.logdebug(e)
 
             if ((enc1 is not None) and (enc2 is not None)):
-                #rospy.logdebug(" Encoders %d %d" % (enc1, enc2))
+                rospy.logdebug(" Encoders %d %d" % (enc1, enc2))
                 self.encodm.update_publish(enc1, enc2)
 
                 self.updater.update()
@@ -245,6 +247,8 @@ class Node:
 
         rospy.logdebug("Twist: -Linear X: %d    -Angular Z: %d",twist.linear.x,twist.angular.z)
         linear_x = twist.linear.x
+        angular_z = twist.angular.z
+
         if linear_x > self.MAX_SPEED:
             linear_x = self.MAX_SPEED
         if linear_x < -self.MAX_SPEED:
@@ -256,23 +260,17 @@ class Node:
         vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
         vl_ticks = int(vl * self.TICKS_PER_METER)
 
-        # TODO: THIS IS WRONG LOGIC, just testing.
-        # We need to figure out how to map the twist command to 
-	# a motor command. Also we need to drive backward if negative
-        # there is a different serial command (BackwardM1 or something)
-        #
-        # Sorry for the mess. It is late.  There is a bug here
-        # where it is using the ticks to calculate how much to output. 
-        # It won't change directions if you make the x value negative,
-        # unless you stop it first. 
-        # 
-        # Also need to figure out how to tell the motor controller to go.
-        # will require reading more specs.
+	#motor1_command = int( linear_x   
+
         # 
         # 
-        motor1_command = abs(linear_x)/self.MAX_SPEED * 127 # 127 is max motor value
-        rospy.logdebug("motor command = %d",int(motor1_command))
-        #rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
+        # 
+        # 
+        # 
+        # 
+        motor1_command = int(abs(linear_x)/self.MAX_SPEED * 127) # 127 is max motor value
+        #rospy.logdebug("motor command = %d",int(motor1_command))
+        rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
             # This is a hack way to keep a poorly tuned PID from making noise at speed 0
@@ -281,7 +279,9 @@ class Node:
                 roboclaw.ForwardM2(self.address, 0)
                 roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
             else:
-                roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
+		pass
+                #roboclaw.ForwardM1(self.address, motor1_command)
+                #roboclaw.SpeedM1(self.address, vr_ticks)
                 #roboclaw.SpeedM1M2(self.address, int(motor1_command), int(motor1_command))
         except OSError as e:
             rospy.logwarn("SpeedM1M2 OSError: %d", e.errno)
@@ -307,7 +307,6 @@ class Node:
             rospy.logdebug(e)
         return stat
 
-    # TODO: need clean shutdown so motors stop even if new msgs are arriving
     def shutdown(self):
         rospy.loginfo("Shutting down")
         if hasattr(self, "sub"):	 
