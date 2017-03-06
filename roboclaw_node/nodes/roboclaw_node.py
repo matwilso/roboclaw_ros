@@ -263,10 +263,10 @@ class Node:
 	#motor1_command = int( linear_x   
 
         # 
-        # 
-        # 
-        # 
-        # 
+        # here I was thinking of instead of using M1Speed, use M1Forward 
+        # and backward and just writing the value straight to the motor
+        # the downside of this is that feedback is not given by the encoders
+        # Encoder value still shows up in the odom  
         # 
         motor1_command = int(abs(linear_x)/self.MAX_SPEED * 127) # 127 is max motor value
         #rospy.logdebug("motor command = %d",int(motor1_command))
