@@ -11,9 +11,6 @@ from nav_msgs.msg import Odometry
 
 __author__ = "bwbazemore@uga.edu (Brad Bazemore)"
 
-
-# TODO need to find some better was of handling OSerror 11 or preventing it, any ideas?
-
 class EncoderOdom:
     def __init__(self, ticks_per_meter, base_width):
         self.TICKS_PER_METER = ticks_per_meter
@@ -48,7 +45,7 @@ class EncoderOdom:
         d_time = (current_time - self.last_enc_time).to_sec()
         self.last_enc_time = current_time
 
-        # TODO find better what to determine going straight, this means slight deviation is accounted
+        # TODO find better way to determine if going straight, this means slight deviation is accounted for
         if left_ticks == right_ticks:
             d_theta = 0.0
             self.cur_x += dist * cos(self.cur_theta)
@@ -70,15 +67,6 @@ class EncoderOdom:
         return vel_x, vel_theta
 
     def update_publish(self, enc_left, enc_right):
-        # 2106 per 0.1 seconds is max speed, error in the 16th bit is 32768
-        # TODO lets find a better way to deal with this error
-        #if abs(enc_left - self.last_enc_left) > 20000:
-        #    rospy.logerr("Ignoring left encoder jump: cur %d, last %d" % (enc_left, self.last_enc_left))
-        #elif abs(enc_right - self.last_enc_right) > 20000:
-        #    rospy.logerr("Ignoring right encoder jump: cur %d, last %d" % (enc_right, self.last_enc_right))
-        #else:
-        #    vel_x, vel_theta = self.update(enc_left, enc_right)
-        #    self.publish_odom(self.cur_x, self.cur_y, self.cur_theta, vel_x, vel_theta)
         vel_x, vel_theta = self.update(enc_left, enc_right)
         self.publish_odom(self.cur_x, self.cur_y, self.cur_theta, vel_x, vel_theta)
 
@@ -139,7 +127,7 @@ class Node:
                        0x4000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "M1 home"),
                        0x8000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "M2 home")}
 
-        rospy.init_node("roboclaw_node", log_level=rospy.DEBUG) #TODO: remove 2nd param
+        rospy.init_node("roboclaw_node", log_level=rospy.DEBUG) #TODO: remove 2nd param when done debugging
         rospy.on_shutdown(self.shutdown)
         rospy.loginfo("Connecting to roboclaw")
         self.dev_name = rospy.get_param("~dev", "/dev/ttyACM0")
@@ -150,8 +138,7 @@ class Node:
             rospy.logfatal("Address out of range")
             rospy.signal_shutdown("Address out of range")
 
-	# TODO: make sure the roboclaw successfully opens.
-	# Sometimes it fails.
+	# TODO (Matt): figure out why roboclaw sometimes fails to Open
         # TODO need someway to check if address is correct
         try:
             roboclaw.Open(self.dev_name, self.baud_rate)
@@ -180,9 +167,10 @@ class Node:
         roboclaw.SpeedM1M2(self.address, 0, 0)
         roboclaw.ResetEncoders(self.address)
 
-        self.MAX_SPEED = float(rospy.get_param("~max_speed", "2.0"))
-        self.TICKS_PER_METER = float(rospy.get_param("~tick_per_meter", "10"))
-        self.BASE_WIDTH = float(rospy.get_param("~base_width", "0.315"))
+        self.LINEAR_MAX_SPEED = float(rospy.get_param("linear/x/max_velocity", "2.0"))
+        self.ANGULAR_MAX_SPEED = float(rospy.get_param("angular/z/max_velocity", "2.0"))
+        self.TICKS_PER_METER = float(rospy.get_param("tick_per_meter", "10"))
+        self.BASE_WIDTH = float(rospy.get_param("base_width", "0.315"))
 
         self.encodm = EncoderOdom(self.TICKS_PER_METER, self.BASE_WIDTH)
         self.last_set_speed_time = rospy.get_rostime()
@@ -195,7 +183,7 @@ class Node:
         rospy.logdebug("dev %s", self.dev_name)
         rospy.logdebug("baud %d", self.baud_rate)
         rospy.logdebug("address %d", self.address)
-        rospy.logdebug("max_speed %f", self.MAX_SPEED)
+        rospy.logdebug("max_speed %f", self.LINEAR_MAX_SPEED)
         rospy.logdebug("ticks_per_meter %f", self.TICKS_PER_METER)
         rospy.logdebug("base_width %f", self.BASE_WIDTH)
 
@@ -249,31 +237,32 @@ class Node:
         linear_x = twist.linear.x
         angular_z = twist.angular.z
 
-        if linear_x > self.MAX_SPEED:
-            linear_x = self.MAX_SPEED
-        if linear_x < -self.MAX_SPEED:
-            linear_x = -self.MAX_SPEED
+        if linear_x > self.LINEAR_MAX_SPEED:
+            linear_x = self.LINEAR_MAX_SPEED
+        if linear_x < -self.LINEAR_MAX_SPEED:
+            linear_x = -self.LINEAR_MAX_SPEED
 
-        vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
-        vl = linear_x - twist.angular.z * self.BASE_WIDTH / 2.0
+	# This code was used for using the roboclaw's builtin PID to 
+        # run the motors at a certain speed based on the quadrature encoders.
+	# When I tried using it, the motors always ran at the same speed
+	# and wouldn't change directions if you flipped the sign without 
+        # stopping at 0 first.
+	#
+        #vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
+        #vl = linear_x - twist.angular.z * self.BASE_WIDTH / 2.0
+        #vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
+        #vl_ticks = int(vl * self.TICKS_PER_METER)
 
-        vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
-        vl_ticks = int(vl * self.TICKS_PER_METER)
 
+	motor1_command = int(linear_x/self.LINEAR_MAX_SPEED + angular_x
 	#motor1_command = int( linear_x   
 
         # 
-        # here I was thinking of instead of using M1Speed, use M1Forward 
-        # and backward and just writing the value straight to the motor
-        # the downside of this is that feedback is not given by the encoders
-        # Encoder value still shows up in the odom  
-        # 
-        motor1_command = int(abs(linear_x)/self.MAX_SPEED * 127) # 127 is max motor value
+        motor1_command = int(abs(linear_x)/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
         #rospy.logdebug("motor command = %d",int(motor1_command))
         rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
-            # This is a hack way to keep a poorly tuned PID from making noise at speed 0
             if vr_ticks is 0 and vl_ticks is 0:
                 roboclaw.ForwardM1(self.address, 0)
                 roboclaw.ForwardM2(self.address, 0)
