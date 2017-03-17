@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import division
 from math import pi, cos, sin
 
 import diagnostic_msgs
@@ -174,7 +175,7 @@ class Node:
         self.encodm = EncoderOdom(self.TICKS_PER_METER, self.BASE_WIDTH)
         self.last_set_speed_time = rospy.get_rostime()
 
-        self.sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback)
+        self.sub = rospy.Subscriber("cmd_vel", Twist, self.cmd_vel_callback, queue_size=5)
         self.TIMEOUT = 2
 
         rospy.sleep(1)
@@ -202,8 +203,7 @@ class Node:
                     rospy.logerr("Could not stop")
                     rospy.logdebug(e)
 
-            # TODO need find solution to the OSError11 looks like sync problem with serial
-            status1, enc1, crc1 = None, None, None
+            # TODO need find solution to the OSError11 looks like sync problem with serial status1, enc1, crc1 = None, None, None
             status2, enc2, crc2 = None, None, None
 
             try:
@@ -238,7 +238,7 @@ class Node:
 
         if linear_x > self.LINEAR_MAX_SPEED:
             linear_x = self.LINEAR_MAX_SPEED
-        if linear_x < -self.LINEAR_MAX_SPEED:
+        elif linear_x < -self.LINEAR_MAX_SPEED:
             linear_x = -self.LINEAR_MAX_SPEED
 
 	    #vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
@@ -246,14 +246,26 @@ class Node:
         #vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
         #vl_ticks = int(vl * self.TICKS_PER_METER)
 
-        motor1_command = int(linear_x/self.LINEAR_MAX_SPEED + angular_z/self.ANGULAR_MAX_SPEED)
-        motor2_command = int(linear_x/self.LINEAR_MAX_SPEED - angular_z/self.ANGULAR_MAX_SPEED)
+        motor1_command = linear_x/self.LINEAR_MAX_SPEED + angular_z/self.ANGULAR_MAX_SPEED
+        motor2_command = linear_x/self.LINEAR_MAX_SPEED - angular_z/self.ANGULAR_MAX_SPEED
 
-        motor1_command = int(motor1_command/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
-        motor2_command = int(motor2_command/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
+
+        motor1_command = int(motor1_command * 127) # 127 is max motor value
+        motor2_command = int(motor2_command * 127) # 127 is max motor value
+
+
+	if motor1_command > 127:
+	    motor1_command = 127
+	elif motor1_command < -127:
+	    motor1_command = -127
+
+	if motor2_command > 127:
+	    motor2_command = 127
+	elif motor2_command < -127:
+	    motor2_command = -127
 
         rospy.logdebug("motor1 command = %d",int(motor1_command))
-        rospy.logdebug("motor2 command = %d",int(motor1_command))
+        rospy.logdebug("motor2 command = %d",int(motor2_command))
         # rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
@@ -265,7 +277,7 @@ class Node:
             if motor2_command >= 0:
                 roboclaw.ForwardM2(self.address, motor2_command)
             else:
-                roboclaw.BackwardM1(self.address, -motor2_command)
+                roboclaw.BackwardM2(self.address, -motor2_command)
 
         except OSError as e:
             rospy.logwarn("Roboclaw OSError: %d", e.errno)

@@ -2,6 +2,8 @@
 <launch>
 
     <rosparam file="$(find roboclaw_node)/config/control.yaml" command="load"/>
+    <arg name="respawn" default="true" />
+    <arg name="run_diag" default="false" />
 
     <node pkg="roboclaw_node" type="roboclaw_node.py" name="roboclaw_node" respawn="$(arg respawn)" output="screen">
     </node>
