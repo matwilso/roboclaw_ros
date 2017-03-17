@@ -1,23 +1,9 @@
 <?xml version="1.0"?>
 <launch>
 
-    <arg name="dev" default="/dev/ttyACM0"/>
-    <arg name="baud" default="115200"/>
-    <arg name="address" default="128"/>
-    <arg name="max_speed" default="2.0"/>
-    <!--<arg name="ticks_per_meter" default="4342.2"/> --> 
-    <arg name="ticks_per_meter" default="10.0"/> <!-- find this for our robot -->
-    <arg name="base_width" default="0.315"/>
-    <arg name="run_diag" default="true"/>
-    <arg name="respawn" default="true"/>
+    <rosparam file="$(find roboclaw_node)/config/control.yaml" command="load"/>
 
     <node pkg="roboclaw_node" type="roboclaw_node.py" name="roboclaw_node" respawn="$(arg respawn)" output="screen">
-        <param name="~dev" value="$(arg dev)"/>
-        <param name="~baud" value="$(arg baud)"/>
-        <param name="~address" value="$(arg address)"/>
-        <param name="~max_speed" value="$(arg max_speed)"/>
-        <param name="~ticks_per_meter" value="$(arg ticks_per_meter)"/>
-        <param name="~base_width" value="$(arg base_width)"/>
     </node>
 
     <node if="$(arg run_diag)" pkg="diagnostic_aggregator" type="aggregator_node"

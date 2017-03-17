@@ -108,7 +108,6 @@ class EncoderOdom:
 
 class Node:
     def __init__(self):
-
         self.ERRORS = {0x0000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "Normal"),
                        0x0001: (diagnostic_msgs.msg.DiagnosticStatus.WARN, "M1 over current"),
                        0x0002: (diagnostic_msgs.msg.DiagnosticStatus.WARN, "M2 over current"),
@@ -242,41 +241,37 @@ class Node:
         if linear_x < -self.LINEAR_MAX_SPEED:
             linear_x = -self.LINEAR_MAX_SPEED
 
-	# This code was used for using the roboclaw's builtin PID to 
-        # run the motors at a certain speed based on the quadrature encoders.
-	# When I tried using it, the motors always ran at the same speed
-	# and wouldn't change directions if you flipped the sign without 
-        # stopping at 0 first.
-	#
-        #vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
+	    #vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
         #vl = linear_x - twist.angular.z * self.BASE_WIDTH / 2.0
         #vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
         #vl_ticks = int(vl * self.TICKS_PER_METER)
 
+        motor1_command = int(linear_x/self.LINEAR_MAX_SPEED + angular_z/self.ANGULAR_MAX_SPEED)
+        motor2_command = int(linear_x/self.LINEAR_MAX_SPEED - angular_z/self.ANGULAR_MAX_SPEED)
 
-	motor1_command = int(linear_x/self.LINEAR_MAX_SPEED + angular_x
-	#motor1_command = int( linear_x   
+        motor1_command = int(motor1_command/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
+        motor2_command = int(motor2_command/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
 
-        # 
-        motor1_command = int(abs(linear_x)/self.LINEAR_MAX_SPEED * 127) # 127 is max motor value
-        #rospy.logdebug("motor command = %d",int(motor1_command))
-        rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
+        rospy.logdebug("motor1 command = %d",int(motor1_command))
+        rospy.logdebug("motor2 command = %d",int(motor1_command))
+        # rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
-            if vr_ticks is 0 and vl_ticks is 0:
-                roboclaw.ForwardM1(self.address, 0)
-                roboclaw.ForwardM2(self.address, 0)
-                roboclaw.SpeedM1M2(self.address, vr_ticks, vl_ticks)
+            if motor1_command >= 0:
+                roboclaw.ForwardM1(self.address, motor1_command)
             else:
-		pass
-                #roboclaw.ForwardM1(self.address, motor1_command)
-                #roboclaw.SpeedM1(self.address, vr_ticks)
-                #roboclaw.SpeedM1M2(self.address, int(motor1_command), int(motor1_command))
+                roboclaw.BackwardM1(self.address, -motor1_command)
+
+            if motor2_command >= 0:
+                roboclaw.ForwardM2(self.address, motor2_command)
+            else:
+                roboclaw.BackwardM1(self.address, -motor2_command)
+
         except OSError as e:
-            rospy.logwarn("SpeedM1M2 OSError: %d", e.errno)
+            rospy.logwarn("Roboclaw OSError: %d", e.errno)
             rospy.logdebug(e)
 
-    # TODO: Need to make this work when more than one error is raised
+
     def check_vitals(self, stat):
         try:
             status = roboclaw.ReadError(self.address)[1]
@@ -298,7 +293,7 @@ class Node:
 
     def shutdown(self):
         rospy.loginfo("Shutting down")
-        if hasattr(self, "sub"):	 
+        if hasattr(self, "sub"):
             self.sub.unregister() # so it doesn't get called after we're dead
         try:
             roboclaw.Open(self.dev_name, self.baud_rate)
