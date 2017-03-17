@@ -108,6 +108,7 @@ class EncoderOdom:
 
 
 class Node:
+    """ Class for running roboclaw ros node for 2 motors in a diff drive setup"""
     def __init__(self):
         self.ERRORS = {0x0000: (diagnostic_msgs.msg.DiagnosticStatus.OK, "Normal"),
                        0x0001: (diagnostic_msgs.msg.DiagnosticStatus.WARN, "M1 over current"),
@@ -139,7 +140,6 @@ class Node:
             rospy.signal_shutdown("Address out of range")
 
 	# TODO (Matt): figure out why roboclaw sometimes fails to Open
-        # TODO need someway to check if address is correct
         try:
             roboclaw.Open(self.dev_name, self.baud_rate)
         except Exception as e:
@@ -188,6 +188,7 @@ class Node:
         rospy.logdebug("base_width %f", self.BASE_WIDTH)
 
     def run(self):
+	"""Run the main ros loop"""
         rospy.loginfo("Starting motor drive")
         roboclaw.Flush()
         r_time = rospy.Rate(10)
@@ -230,6 +231,8 @@ class Node:
             r_time.sleep()
 
     def cmd_vel_callback(self, twist):
+	"""Command the motors based on the incoming twist message"""
+
         self.last_set_speed_time = rospy.get_rostime()
 
         rospy.logdebug("Twist: -Linear X: %d    -Angular Z: %d",twist.linear.x,twist.angular.z)
@@ -241,32 +244,23 @@ class Node:
         elif linear_x < -self.LINEAR_MAX_SPEED:
             linear_x = -self.LINEAR_MAX_SPEED
 
-	    #vr = linear_x + twist.angular.z * self.BASE_WIDTH / 2.0  # m/s
-        #vl = linear_x - twist.angular.z * self.BASE_WIDTH / 2.0
-        #vr_ticks = int(vr * self.TICKS_PER_METER)  # ticks/s
-        #vl_ticks = int(vl * self.TICKS_PER_METER)
-
+	# Take linear x and angular z values and compute command
         motor1_command = linear_x/self.LINEAR_MAX_SPEED + angular_z/self.ANGULAR_MAX_SPEED
         motor2_command = linear_x/self.LINEAR_MAX_SPEED - angular_z/self.ANGULAR_MAX_SPEED
 
+	# Scale to motor pwm
+        motor1_command = int(motor1_command * 127) 
+        motor2_command = int(motor2_command * 127) 
 
-        motor1_command = int(motor1_command * 127) # 127 is max motor value
-        motor2_command = int(motor2_command * 127) # 127 is max motor value
 
-
-	if motor1_command > 127:
-	    motor1_command = 127
-	elif motor1_command < -127:
-	    motor1_command = -127
-
-	if motor2_command > 127:
-	    motor2_command = 127
-	elif motor2_command < -127:
-	    motor2_command = -127
+	# Clip commands to within bounds (-127,127)
+	motor1_command = min(127, motor1_command)
+	motor1_command = max(-127, motor1_command)
+	motor2_command = min(127, motor2_command)
+	motor2_command = max(-127, motor2_command)
 
         rospy.logdebug("motor1 command = %d",int(motor1_command))
         rospy.logdebug("motor2 command = %d",int(motor2_command))
-        # rospy.logdebug("vr_ticks:%d vl_ticks: %d", vr_ticks, vl_ticks)
 
         try:
             if motor1_command >= 0:
@@ -285,6 +279,7 @@ class Node:
 
 
     def check_vitals(self, stat):
+	"""Check battery voltage and temperatures from roboclaw"""
         try:
             status = roboclaw.ReadError(self.address)[1]
         except OSError as e:
@@ -304,6 +299,8 @@ class Node:
         return stat
 
     def shutdown(self):
+	"""Handle shutting down the node"""
+
         rospy.loginfo("Shutting down")
         if hasattr(self, "sub"):
             self.sub.unregister() # so it doesn't get called after we're dead
