@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="dev0" default="/dev/ttyACM0"/>
+    <arg name="dev1" default="/dev/ttyACM1"/>
+    <arg name="baud" default="115200"/>
+    <arg name="address0" default="128"/>
+    <arg name="address1" default="128"/>
+    <arg name="max_speed" default="2.0"/>
+    <arg name="ticks_per_meter" default="4300"/>
+    <arg name="base_width" default="0.315"/>
+
+    <!-- <rosparam file="$(find roboclaw_ros)/config/control.yaml" command="load"/> -->
+    <arg name="respawn" default="true" />
+    <arg name="respawn_delay" default="2" />
+    <arg name="run_diag" default="false" />
+
+
+    <node pkg="roboclaw_ros" type="roboclaw_node.py" name="roboclaw_node_0" respawn="$(arg respawn)" respawn_delay="$(arg respawn_delay)" output="screen">
+        <param name="~dev" value="$(arg dev0)"/>
+        <param name="~baud" value="$(arg baud)"/>
+        <param name="~address" value="$(arg address0)"/>
+        <param name="~max_speed" value="$(arg max_speed)"/>
+        <param name="~ticks_per_meter" value="$(arg ticks_per_meter)"/>
+        <param name="~base_width" value="$(arg base_width)"/>
+    </node>
+
+    <node pkg="roboclaw_ros" type="roboclaw_node.py" name="roboclaw_node_1" respawn="$(arg respawn)" respawn_delay="$(arg respawn_delay)" output="screen">
+        <param name="~dev" value="$(arg dev1)"/>
+        <param name="~baud" value="$(arg baud)"/>
+        <param name="~address" value="$(arg address1)"/>
+        <param name="~max_speed" value="$(arg max_speed)"/>
+        <param name="~ticks_per_meter" value="$(arg ticks_per_meter)"/>
+        <param name="~base_width" value="$(arg base_width)"/>
+    </node>
+<!--
+    <node if="$(arg run_diag)" pkg="diagnostic_aggregator" type="aggregator_node"
+          name="diagnostic_aggregator">
+        <rosparam command="load"
+                  file="$(find roboclaw_ros)/config/roboclaw_diag.yaml"/>
+    </node>
+-->
+</launch>

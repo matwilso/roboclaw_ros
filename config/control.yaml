@@ -1,0 +1,33 @@
+# THIS DOES NOT CURRENTLY HAVE ANY USE
+ticks_per_meter: 4342.2 # TODO: find this for our robot
+base_width: 0.315 # TODO: find this for our robot
+
+# NOTE: These covariances are currently not used
+pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 0.03]
+twist_covariance_diagonal: [0.001, 0.001, 0.001, 1000000.0, 1000000.0, 0.03]
+cmd_vel_timeout: 1
+
+
+# Odometry fused with IMU is published by robot_localization, so
+# no need to publish a TF based on encoders alone.
+# TODO: maybe change this to false later if we use robot_localization
+enable_odom_tf: true
+
+# Wheel separation and radius multipliers
+wheel_separation_multiplier: 1.5 # default: 1.0
+wheel_radius_multiplier    : 1.0 # default: 1.0
+
+# Velocity and acceleration limits
+# Whenever a min_* is unspecified, default to -max_*
+linear:
+    x:
+        has_velocity_limits    : true
+        max_velocity           : 2.0   # m/s
+        has_acceleration_limits: true
+        max_acceleration       : 20.0   # m/s^2
+angular:
+    z:
+        has_velocity_limits    : true
+        max_velocity           : 2.0   # rad/s
+        has_acceleration_limits: true
+        max_acceleration       : 25.0   # rad/s^2
